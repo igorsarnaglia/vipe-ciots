@@ -27,7 +27,7 @@
 <div id="root"></div>
 <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
 <script type="text/babel" data-type="module">
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { Search, Filter, ChevronDown, ChevronUp, LogOut, Truck, AlertCircle, CheckCircle, FileText, X, BarChart3, RefreshCw, Loader2 } from "lucide-react";
 
@@ -378,7 +378,19 @@ function App() {
                 background:"transparent", border:"1px solid rgba(255,203,5,0.4)", color:"#FFCB05",
                 padding:"8px 18px", borderRadius:8, cursor:"pointer", fontSize:12, fontWeight:600
               }}>Limpar</button>
-              <button onClick={() => alert("Contratos selecionados para RPA:\n" + [...selectedForRpa].join(", "))} style={{
+              <button onClick={() => {
+                const contratos = data.filter(c => selectedForRpa.has(c.id));
+                const linhas = contratos.map(c =>
+                  `- Contrato #${c.id} | ${c.prop} | ${c.cpfProp} | ${BRL(c.vlrL)} | Mot: ${c.mot}`
+                ).join("\n");
+                const texto = `Gerar RPA dos seguintes contratos:\n${linhas}`;
+                navigator.clipboard.writeText(texto).then(() => {
+                  alert("Texto copiado para o clipboard!\n\nCole no Cowork para gerar as RPAs.\n\n" + texto);
+                  setSelectedForRpa(new Set());
+                }).catch(() => {
+                  prompt("Copie o texto abaixo e cole no Cowork:", texto);
+                });
+              }} style={{
                 background:"#FFCB05", border:"none", color:"#353535",
                 padding:"8px 18px", borderRadius:8, cursor:"pointer", fontSize:12, fontWeight:800,
                 boxShadow:"0 2px 8px rgba(255,203,5,0.3)"
