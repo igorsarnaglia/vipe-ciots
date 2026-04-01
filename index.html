@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VIPE CIOTs â Painel de Saldos de Frete</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  body { margin:0; font-family:'Open Sans',sans-serif; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.3.1",
+    "react/": "https://esm.sh/react@18.3.1/",
+    "react-dom": "https://esm.sh/react-dom@18.3.1",
+    "react-dom/": "https://esm.sh/react-dom@18.3.1/",
+    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+    "lucide-react": "https://esm.sh/lucide-react@0.383.0?external=react"
+  }
+}
+</script>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+<script type="text/babel" data-type="module">
+import { useState, useMemo, useCallback, useEffect } from "react";
+import { createRoot } from "react-dom/client";
+import { Search, Filter, ChevronDown, ChevronUp, LogOut, Truck, AlertCircle, CheckCircle, FileText, X, BarChart3, RefreshCw, Loader2 } from "lucide-react";
+
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// VIPE CIOTs â Painel de Contratos de Frete
+// Conectado ao Supabase (banco real)
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+
+const SUPABASE_URL = "https://epdiflaurmimmhphesbl.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwZGlmbGF1cm1pbW1ocGhlc2JsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5NTk3NjIsImV4cCI6MjA5MDUzNTc2Mn0.f4EjPR2bMJKg4FbnhFY2wV13rZgykaI-Kxb_5CBS2_0";
+
+async function fetchCiots() {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/ciots?select=*&order=emissao.asc`, {
+    headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` }
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const rows = await res.json();
+  return rows.map(r => ({
+    id: r.contrato, cpfMot: r.motorista_cpf, mot: r.motorista_nome,
+    cpfProp: r.proprietario_cnpj, prop: r.proprietario_nome, fil: r.filial_codigo,
+    em: r.emissao ? r.emissao.split("-").reverse().join("/") : "",
+    vlrC: r.vlr_contratado, adto: r.adiantamentos, ped: r.pedagio,
+    rend: r.rendimentos, irrf: r.irrf, inss: r.inss, sest: r.sest,
+    senat: r.senat, outros: r.outros, vlrL: r.vlr_liquido,
+    rpa: r.nro_rpa,
+    dtRpa: r.data_emissao_rpa ? r.data_emissao_rpa.split("-").reverse().join("/") : null,
+    veic: r.veiculo, docs: r.documentos,
+  }));
+}
+
+const BRL = (v) => v == null ? "\u2014" : `R$ ${Number(v).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+
+function VipeLogo({ height = 32, color = "#353535", arrowColor = "#FFCB05" }) {
+  const scale = height / 40.83;
+  return (
+    <svg viewBox="0 0 200 40.83" height={height} width={200 * scale} style={{display:"block"}}>
+      <polygon points="78.73 .06 69.34 40.83 85.45 40.83 94.83 .06 78.73 .06" fill={color} />
+      <path d="M146.52,3.63c-1.91-2.38-5.62-3.57-11.14-3.57h-33.24l-9.38,40.78h16.11l2.92-12.68h17.25c2.78,0,5.25-.34,7.4-1.03,2.16-.69,3.99-1.66,5.5-2.91,1.51-1.26,2.74-2.72,3.7-4.4.96-1.67,1.67-3.52,2.13-5.54,1.09-4.72.68-8.27-1.23-10.65ZM131.03,13.99c-.34,1.49-1.02,2.56-2.03,3.23-1.01.67-2.52,1-4.54,1h-10.39l1.97-8.57h10.39c2.02,0,3.38.33,4.08,1,.7.67.88,1.78.52,3.34Z" fill={color} />
+      <polygon points="197.7 9.99 200 .06 156.58 .06 147.2 40.83 190.55 40.83 192.86 30.9 165.59 30.9 167.04 24.56 190.85 24.56 192.78 16.3 168.94 16.3 170.4 9.99 197.7 9.99" fill={color} />
+      <polygon points="55.82 .06 38.8 24.43 37.15 13.94 21.35 13.94 28.36 40.8 40.86 40.8 44.86 40.83 72.52 .06 55.82 .06" fill={color} />
+      <path d="M21.25,0L0,0l5.59,9.72h10.07l5.59-9.72ZM15.65,5.5h-3.5l-2.16-3.53h7.83l-2.16,3.53Z" fill={arrowColor} />
+    </svg>
+  );
+}
+
+const styles = {
+  loginBg: { minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#353535", position:"relative", overflow:"hidden" },
+  loginPattern: { position:"absolute", inset:0, opacity:0.04, backgroundImage:"repeating-linear-gradient(45deg, #FFCB05 0, #FFCB05 1px, transparent 0, transparent 50%)", backgroundSize:"40px 40px" },
+  loginCard: { background:"#fff", borderRadius:20, padding:"48px 40px", width:"100%", maxWidth:400, position:"relative", zIndex:1 },
+  loginStripe: { position:"absolute", top:0, left:0, right:0, height:6, background:"#FFCB05", borderRadius:"20px 20px 0 0" },
+  header: { background:"#FFCB05", padding:"0 24px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100, height:56 },
+  kpiGrid: { display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))", gap:16, marginBottom:28 },
+  searchBar: { display:"flex", gap:10, marginBottom:20, flexWrap:"wrap", alignItems:"center" },
+};
+
+function LoginScreen({ onLogin }) {
+  return (
+    <div style={styles.loginBg}>
+      <div style={styles.loginPattern} />
+      <div style={styles.loginCard}>
+        <div style={styles.loginStripe} />
+        <div style={{textAlign:"center", marginBottom:36, paddingTop:8, display:"flex", flexDirection:"column", alignItems:"center"}}>
+          <div style={{marginBottom:16, display:"flex", justifyContent:"center"}}><VipeLogo height={36} color="#353535" arrowColor="#FFCB05" /></div>
+          <div style={{display:"inline-block", background:"#353535", borderRadius:6, padding:"6px 14px"}}>
+            <span style={{fontSize:11, fontWeight:700, color:"#FFCB05", letterSpacing:2, fontFamily:"'Open Sans',sans-serif", textTransform:"uppercase"}}>Painel de Saldos de Frete</span>
+          </div>
+        </div>
+        <div>
+          <div style={{marginBottom:16}}>
+            <label style={{display:"block", fontSize:12, color:"#999", marginBottom:6, fontWeight:600, textTransform:"uppercase", letterSpacing:0.5}}>Usuario</label>
+            <input placeholder="seu.usuario" style={{width:"100%", padding:"14px 16px", border:"2px solid #eee", borderRadius:10, fontSize:15, outline:"none", boxSizing:"border-box", background:"#fafafa"}} />
+          </div>
+          <div style={{marginBottom:28}}>
+            <label style={{display:"block", fontSize:12, color:"#999", marginBottom:6, fontWeight:600, textTransform:"uppercase", letterSpacing:0.5}}>Senha</label>
+            <input type="password" placeholder="â¢â¢â¢â¢â¢â¢â¢â¢" style={{width:"100%", padding:"14px 16px", border:"2px solid #eee", borderRadius:10, fontSize:15, outline:"none", boxSizing:"border-box", background:"#fafafa"}} />
+          </div>
+          <button onClick={() => onLogin("Igor")} style={{
+            width:"100%", padding:"15px", background:"#FFCB05", color:"#353535",
+            border:"none", borderRadius:10, fontSize:15, fontWeight:700, cursor:"pointer",
+            boxShadow:"0 4px 14px rgba(255,203,5,0.4)"
+          }}>Entrar</button>
+        </div>
+        <p style={{textAlign:"center", marginTop:24, fontSize:11, color:"#ccc"}}>VIPE Transportes â Sistema interno</p>
+      </div>
+    </div>
+  );
+}
+
+function KpiCard({ icon, label, value, sub, accent = "#FFCB05", onClick, active }) {
+  const Icon = icon;
+  return (
+    <div onClick={onClick} style={{
+      background: active ? "#353535" : "#fff", borderRadius:14, padding:"22px 20px",
+      boxShadow: active ? "0 4px 20px rgba(53,53,53,0.3)" : "0 1px 6px rgba(0,0,0,0.04)",
+      border: active ? "2px solid #FFCB05" : "2px solid transparent",
+      cursor: onClick ? "pointer" : "default", transition:"all 0.25s", position:"relative", overflow:"hidden"
+    }}>
+      <div style={{position:"absolute", top:0, left:0, width:4, height:"100%", background: accent, borderRadius:"14px 0 0 14px"}} />
+      <div style={{display:"flex", alignItems:"center", gap:14, paddingLeft:8}}>
+        <div style={{
+          background: active ? "rgba(255,203,5,0.15)" : `${accent}15`,
+          borderRadius:12, width:46, height:46, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0
+        }}>
+          <Icon size={22} color={active ? "#FFCB05" : accent} />
+        </div>
+        <div style={{flex:1}}>
+          <div style={{fontSize:12, color: active ? "#aaa" : "#999", fontWeight:600, textTransform:"uppercase", letterSpacing:0.3}}>{label}</div>
+          <div style={{fontSize:22, fontWeight:800, color: active ? "#FFCB05" : "#353535", lineHeight:1.2}}>{value}</div>
+          {sub && <div style={{fontSize:12, color: active ? "#ccc" : "#999", marginTop:2}}>{sub}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ContractCard({ c, isExpanded, onToggle, isSelected, onSelect }) {
+  const aberto = !c.rpa;
+  return (
+    <div style={{
+      background:"#fff", borderRadius:14, marginBottom:10, overflow:"hidden", transition:"all 0.25s",
+      boxShadow: isExpanded ? "0 4px 20px rgba(0,0,0,0.08)" : "0 1px 4px rgba(0,0,0,0.04)",
+      borderLeft: aberto ? "4px solid #FFCB05" : "4px solid #2e7d32"
+    }}>
+      <div onClick={onToggle} style={{display:"flex", alignItems:"center", padding:"16px 18px", cursor:"pointer", gap:14}}>
+        {aberto && (
+          <input type="checkbox" checked={isSelected}
+            onChange={e => { e.stopPropagation(); onSelect(!isSelected); }}
+            onClick={e => e.stopPropagation()}
+            style={{width:20, height:20, accentColor:"#FFCB05", cursor:"pointer", flexShrink:0}} />
+        )}
+        <div style={{
+          background: aberto ? "#FFCB05" : "#2e7d32", color: aberto ? "#353535" : "#fff",
+          padding:"5px 12px", borderRadius:20, fontSize:11, fontWeight:700, flexShrink:0, minWidth:80, textAlign:"center", letterSpacing:0.3
+        }}>
+          {aberto ? "EM ABERTO" : "PAGO"}
+        </div>
+        <div style={{
+          fontWeight:800, fontSize:18, minWidth:120, flexShrink:0,
+          color: aberto ? "#d4760a" : "#2e7d32"
+        }}>
+          {BRL(c.vlrL)}
+        </div>
+        <div style={{flex:1, minWidth:180, overflow:"hidden"}}>
+          <div style={{fontSize:14, fontWeight:700, color:"#353535", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>{c.mot}</div>
+          <div style={{fontSize:12, color:"#999", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>
+            Prop: <span style={{color:"#666"}}>{c.prop}</span>
+          </div>
+        </div>
+        <div style={{textAlign:"right", flexShrink:0}}>
+          <div style={{fontSize:14, fontWeight:700, color:"#353535"}}>#{c.id}</div>
+          <div style={{fontSize:11, color:"#bbb"}}>{c.fil} â¢ {c.em}</div>
+        </div>
+        <div style={{flexShrink:0, color:"#ccc", transition:"transform 0.2s", transform: isExpanded ? "rotate(180deg)" : "rotate(0)"}}>
+          <ChevronDown size={20}/>
+        </div>
+      </div>
+      {isExpanded && (
+        <div style={{padding:"0 22px 20px", borderTop:"1px solid #f5f5f5"}}>
+          <div style={{display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(170px, 1fr))", gap:10, paddingTop:16}}>
+            <DetailCell label="Vlr. Contratado" value={BRL(c.vlrC)} />
+            <DetailCell label="Adiantamento" value={BRL(c.adto)} />
+            <DetailCell label="Pedagio" value={BRL(c.ped)} />
+            <DetailCell label="Rendimentos" value={BRL(c.rend)} />
+            <DetailCell label="IRRF" value={BRL(c.irrf)} warn={c.irrf > 0} />
+            <DetailCell label="INSS" value={BRL(c.inss)} warn={c.inss > 0} />
+            <DetailCell label="SEST" value={BRL(c.sest)} warn={c.sest > 0} />
+            <DetailCell label="SENAT" value={BRL(c.senat)} warn={c.senat > 0} />
+            <DetailCell label="Outros Desc." value={BRL(c.outros)} />
+            <DetailCell label="Valor Liquido" value={BRL(c.vlrL)} bold accent />
+            {c.rpa && <DetailCell label="N RPA" value={`#${c.rpa}`} />}
+            {c.dtRpa && <DetailCell label="Data Pagamento" value={c.dtRpa} />}
+            <DetailCell label="Veiculo" value={c.veic || "\u2014"} />
+            <DetailCell label="Documentos" value={c.docs || "\u2014"} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DetailCell({ label, value, bold, warn, accent }) {
+  return (
+    <div style={{
+      background: warn ? "#fff8e1" : accent ? "#f0faf0" : "#f8f9fa",
+      borderRadius:10, padding:"10px 14px",
+      border: accent ? "1px solid #c8e6c9" : warn ? "1px solid #ffe082" : "1px solid transparent"
+    }}>
+      <div style={{fontSize:11, color:"#999", fontWeight:600, textTransform:"uppercase", letterSpacing:0.3, marginBottom:2}}>{label}</div>
+      <div style={{fontSize:14, fontWeight: bold ? 800 : 500, color: warn ? "#e65100" : accent ? "#2e7d32" : "#353535"}}>{value}</div>
+    </div>
+  );
+}
+
+function App() {
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [userName, setUserName] = useState("");
+  const [search, setSearch] = useState("");
+  const [filterAberto, setFilterAberto] = useState(false);
+  const [filterFilial, setFilterFilial] = useState("");
+  const [expandedId, setExpandedId] = useState(null);
+  const [selectedForRpa, setSelectedForRpa] = useState(new Set());
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const loadData = useCallback(async () => {
+    setLoading(true); setError(null);
+    try { setData(await fetchCiots()); }
+    catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { if (loggedIn) loadData(); }, [loggedIn, loadData]);
+
+  const filiais = useMemo(() => [...new Set(data.map(c => c.fil))].sort(), [data]);
+
+  const filtered = useMemo(() => {
+    let result = data;
+    if (search) {
+      const s = search.toLowerCase();
+      result = result.filter(c => c.mot.toLowerCase().includes(s) || c.prop.toLowerCase().includes(s) || String(c.id).includes(s));
+    }
+    if (filterAberto) result = result.filter(c => !c.rpa);
+    if (filterFilial) result = result.filter(c => c.fil === filterFilial);
+    return result.sort((a, b) => {
+      const parseDate = (d) => { if (!d) return 0; const p = d.split("/"); return p.length === 3 ? new Date(p[2], p[1]-1, p[0]).getTime() : 0; };
+      return parseDate(a.em) - parseDate(b.em);
+    });
+  }, [data, search, filterAberto, filterFilial]);
+
+  const kpis = useMemo(() => {
+    const abertos = data.filter(c => !c.rpa);
+    const pagos = data.filter(c => c.rpa);
+    return {
+      total: data.length,
+      abertosCount: abertos.length,
+      abertosValor: abertos.reduce((s, c) => s + (c.vlrL || 0), 0),
+      pagosCount: pagos.length,
+      pagosValor: pagos.reduce((s, c) => s + (c.vlrL || 0), 0),
+    };
+  }, [data]);
+
+  const toggleSelect = useCallback((id, sel) => {
+    setSelectedForRpa(prev => { const n = new Set(prev); sel ? n.add(id) : n.delete(id); return n; });
+  }, []);
+
+  if (!loggedIn) return <LoginScreen onLogin={u => { setUserName(u); setLoggedIn(true); }} />;
+
+  return (
+    <div style={{minHeight:"100vh", background:"#f5f5f5", fontFamily:"'Open Sans',sans-serif"}}>
+      <header style={styles.header}>
+        <div style={{display:"flex", alignItems:"center", gap:14}}>
+          <VipeLogo height={28} color="#353535" arrowColor="#fff" />
+          <div style={{width:1, height:24, background:"rgba(53,53,53,0.2)"}} />
+          <span style={{fontSize:13, color:"#353535", fontWeight:700, opacity:0.7, letterSpacing:0.3}}>Saldos de Frete</span>
+        </div>
+        <div style={{display:"flex", alignItems:"center", gap:14}}>
+          <button onClick={loadData} disabled={loading} title="Atualizar dados" style={{
+            background:"rgba(53,53,53,0.08)", border:"none", borderRadius:8, padding:"6px 10px",
+            cursor: loading ? "wait" : "pointer", display:"flex", alignItems:"center", gap:4,
+            fontSize:11, color:"#353535", fontWeight:600, transition:"all 0.2s"
+          }}>
+            {loading ? <Loader2 size={14} style={{animation:"spin 1s linear infinite"}} /> : <RefreshCw size={14}/>}
+            {loading ? "Carregando..." : "Atualizar"}
+          </button>
+          <div style={{background:"rgba(53,53,53,0.08)", borderRadius:8, padding:"6px 12px"}}>
+            <span style={{fontSize:12, color:"#353535", fontWeight:600}}>{userName}</span>
+          </div>
+          <button onClick={() => setLoggedIn(false)} style={{
+            background:"transparent", border:"1px solid rgba(53,53,53,0.2)", borderRadius:8,
+            padding:"6px 10px", cursor:"pointer", display:"flex", alignItems:"center", gap:4,
+            fontSize:11, color:"#353535", fontWeight:600, transition:"all 0.2s"
+          }}>
+            <LogOut size={13}/> Sair
+          </button>
+        </div>
+      </header>
+
+      <main style={{maxWidth:1200, margin:"0 auto", padding:"28px 20px"}}>
+        {loading && data.length === 0 && (
+          <div style={{textAlign:"center", padding:"80px 20px"}}>
+            <Loader2 size={48} style={{animation:"spin 1s linear infinite", color:"#FFCB05", marginBottom:16}} />
+            <p style={{fontSize:16, color:"#999", fontWeight:600}}>Carregando contratos do Supabase...</p>
+          </div>
+        )}
+        {error && (
+          <div style={{background:"#fff3cd", border:"1px solid #ffc107", borderRadius:12, padding:"16px 20px", marginBottom:20, display:"flex", alignItems:"center", gap:10}}>
+            <AlertCircle size={20} color="#856404" />
+            <span style={{color:"#856404", fontSize:14}}>Erro ao carregar: {error}</span>
+            <button onClick={loadData} style={{marginLeft:"auto", background:"#ffc107", border:"none", borderRadius:6, padding:"6px 14px", cursor:"pointer", fontSize:12, fontWeight:700}}>Tentar novamente</button>
+          </div>
+        )}
+
+        <div style={styles.kpiGrid}>
+          <KpiCard icon={Truck} label="Total Contratos" value={kpis.total} sub="Mar/2026" />
+          <KpiCard icon={AlertCircle} label="Em Aberto" value={kpis.abertosCount} sub={BRL(kpis.abertosValor)} accent="#d4760a" onClick={() => setFilterAberto(!filterAberto)} active={filterAberto} />
+          <KpiCard icon={CheckCircle} label="Pagos" value={kpis.pagosCount} sub={BRL(kpis.pagosValor)} accent="#2e7d32" />
+          <KpiCard icon={BarChart3} label="Valor Total" value={BRL(kpis.abertosValor + kpis.pagosValor)} sub="Contratado no periodo" accent="#1565c0" />
+        </div>
+
+        <div style={styles.searchBar}>
+          <div style={{position:"relative", flex:"1 1 300px"}}>
+            <Search size={18} style={{position:"absolute", left:14, top:14, color:"#bbb"}} />
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar motorista, proprietario ou contrato..."
+              style={{
+                width:"100%", padding:"13px 13px 13px 44px", border:"2px solid #eee", borderRadius:12,
+                fontSize:14, outline:"none", boxSizing:"border-box", transition:"all 0.2s", background:"#fff"
+              }}
+              onFocus={e => e.target.style.borderColor = "#FFCB05"}
+              onBlur={e => e.target.style.borderColor = "#eee"} />
+            {search && (
+              <button onClick={() => setSearch("")} style={{position:"absolute", right:12, top:14, background:"none", border:"none", cursor:"pointer", color:"#ccc"}}>
+                <X size={16} />
+              </button>
+            )}
+          </div>
+          <select value={filterFilial} onChange={e => setFilterFilial(e.target.value)} style={{
+            padding:"13px 16px", border:"2px solid #eee", borderRadius:12, fontSize:14,
+            background:"#fff", outline:"none", cursor:"pointer", minWidth:130
+          }}>
+            <option value="">Todas Filiais</option>
+            {filiais.map(f => <option key={f} value={f}>{f}</option>)}
+          </select>
+          <button onClick={() => setFilterAberto(!filterAberto)} style={{
+            padding:"13px 20px", background: filterAberto ? "#353535" : "#fff",
+            color: filterAberto ? "#FFCB05" : "#666", border: filterAberto ? "2px solid #FFCB05" : "2px solid #eee",
+            borderRadius:12, fontSize:13, fontWeight:700, cursor:"pointer",
+            display:"flex", alignItems:"center", gap:6, transition:"all 0.2s", letterSpacing:0.3
+          }}>
+            <Filter size={15}/> {filterAberto ? "Somente Em Aberto" : "Em Aberto"}
+          </button>
+        </div>
+
+        {selectedForRpa.size > 0 && (
+          <div style={{
+            background:"linear-gradient(135deg, #353535, #444)", color:"#FFCB05",
+            padding:"14px 22px", borderRadius:14, marginBottom:18,
+            display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10,
+            boxShadow:"0 4px 16px rgba(53,53,53,0.3)"
+          }}>
+            <div style={{display:"flex", alignItems:"center", gap:10}}>
+              <FileText size={20}/>
+              <span style={{fontWeight:700, fontSize:14}}>{selectedForRpa.size} contrato(s) para gerar RPA</span>
+            </div>
+            <div style={{display:"flex", gap:8}}>
+              <button onClick={() => setSelectedForRpa(new Set())} style={{
+                background:"transparent", border:"1px solid rgba(255,203,5,0.4)", color:"#FFCB05",
+                padding:"8px 18px", borderRadius:8, cursor:"pointer", fontSize:12, fontWeight:600
+              }}>Limpar</button>
+              <button onClick={() => alert("Contratos selecionados para RPA:\n" + [...selectedForRpa].join(", "))} style={{
+                background:"#FFCB05", border:"none", color:"#353535",
+                padding:"8px 18px", borderRadius:8, cursor:"pointer", fontSize:12, fontWeight:800,
+                boxShadow:"0 2px 8px rgba(255,203,5,0.3)"
+              }}>Gerar RPAs</button>
+            </div>
+          </div>
+        )}
+
+        <div style={{fontSize:12, color:"#bbb", marginBottom:14, fontWeight:600, display:"flex", alignItems:"center", gap:8}}>
+          <span>{filtered.length} contrato(s)</span>
+          {search && <span style={{background:"#f0f0f0", padding:"2px 8px", borderRadius:4, color:"#666"}}>"{search}"</span>}
+          {filterAberto && <span style={{background:"#fff3cd", padding:"2px 8px", borderRadius:4, color:"#856404"}}>em aberto</span>}
+          {filterFilial && <span style={{background:"#e3f2fd", padding:"2px 8px", borderRadius:4, color:"#1565c0"}}>{filterFilial}</span>}
+        </div>
+
+        <div>
+          {filtered.map(c => {
+            const key = `${c.id}-${c.cpfProp}`;
+            return (
+              <ContractCard key={key} c={c}
+                isExpanded={expandedId === key}
+                onToggle={() => setExpandedId(expandedId === key ? null : key)}
+                isSelected={selectedForRpa.has(c.id)}
+                onSelect={sel => toggleSelect(c.id, sel)} />
+            );
+          })}
+          {filtered.length === 0 && !loading && (
+            <div style={{textAlign:"center", padding:"64px 20px", color:"#ccc"}}>
+              <Truck size={56} strokeWidth={1} style={{marginBottom:16}} />
+              <p style={{fontSize:16, fontWeight:600, color:"#999"}}>Nenhum contrato encontrado</p>
+              <p style={{fontSize:13, color:"#ccc"}}>Tente ajustar os filtros ou busca</p>
+            </div>
+          )}
+        </div>
+      </main>
+
+      <footer style={{background:"#353535", color:"#777", textAlign:"center", padding:"20px", fontSize:11, marginTop:48}}>
+        <VipeLogo height={16} color="#666" arrowColor="#FFCB05" />
+        <p style={{marginTop:8}}>Painel de Saldos de Frete â¢ Atualizado em {new Date().toLocaleDateString("pt-BR")}</p>
+      </footer>
+    </div>
+  );
+}
+
+createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
